@@ -105,6 +105,19 @@ Right-click on a character to open the **context menu** and configure movement o
 
 ---
 
+# Creating Dialogue and Sound Effects
+
+If you want to **record dialogue for characters or create custom sound effects**, you can use our browser-based DAW:
+
+[Phantomcrew Web DAW](https://phantomcrew.de/daw/)
+
+The tool allows you to **record, edit, and export audio** directly in your browser.
+
+Export your sounds as **WAV or MP3 files**, then import them into the game.
+Once added, they will become **available for use inside the editor** for dialogue, sound effects, or scene audio.
+
+---
+
 # Project Status
 
 ⚠️ This is an **early prototype** and many systems are still experimental.
@@ -132,7 +145,7 @@ MIT License
 
 ### 🤝 Author
 
-Made with ❤️ & ☕️ ☕️ ☕️ ☕️ by Nico and Julius – [phantomcrew.eu](https://phantomcrew.eu/)
+Made by Nico and Julius – [phantomcrew.eu](https://phantomcrew.eu/)
 
 <br><a href="https://www.buymeacoffee.com/phantomcrew" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-blue.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
 ---

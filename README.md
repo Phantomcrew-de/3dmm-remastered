@@ -112,3 +112,16 @@ Expect bugs, missing features, and ongoing changes.
 
 The editor is being developed as part of the **3D Movie Maker Remastered community project**.
 
+---
+
+## License
+
+MIT License
+
+### 🤝 Author
+
+Made with ❤️ & ☕️ ☕️ ☕️ ☕️ by Nico and Julius – [phantomcrew.eu](https://phantomcrew.eu/)
+
+<br><a href="https://www.buymeacoffee.com/phantomcrew" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-blue.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+---
+

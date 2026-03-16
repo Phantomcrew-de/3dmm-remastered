@@ -114,6 +114,18 @@ The editor is being developed as part of the **3D Movie Maker Remastered communi
 
 ---
 
+# Missing Sound Files
+
+The **WAV files in the `SFX` folder are not included in this repository**.
+
+These sound effects originate from the original **3D Movie Maker (1995)** and are therefore not distributed with this project.
+
+To enable sound effects in the editor, you will need to **extract the WAV files from your own copy of the original 3D Movie Maker** and place them inside the `SFX` folder.
+
+Once the files are present in the correct directory, the editor will automatically load and use them.
+
+---
+
 ## License
 
 MIT License

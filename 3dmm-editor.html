@@ -1361,6 +1361,36 @@ const depthTex = await loadAndDecodeDepthTexture("./depth.png");
     // meshes that can be raycast/picked (filled after GLB load)
     let pickables = [];
 
+    // Selection helper for the last clicked character
+    const selectionBox = new THREE.Box3Helper(new THREE.Box3(), 0xffffff);
+    selectionBox.visible = false;
+    if (selectionBox.material){
+      selectionBox.material.depthTest = false;
+      selectionBox.material.transparent = true;
+      selectionBox.material.opacity = 0.95;
+      selectionBox.material.toneMapped = false;
+    }
+    scene3d.add(selectionBox);
+
+    function updateSelectionOutline(){
+      if (!activeCharacter || !activeCharacter.group) {
+        selectionBox.visible = false;
+        return;
+      }
+      try{
+        selectionBox.box.setFromObject(activeCharacter.group);
+        const min = selectionBox.box.min, max = selectionBox.box.max;
+        const valid = [min.x,min.y,min.z,max.x,max.y,max.z].every(Number.isFinite);
+        const dx = Math.abs(max.x - min.x), dy = Math.abs(max.y - min.y), dz = Math.abs(max.z - min.z);
+        if (!valid || (dx < 1e-6 && dy < 1e-6 && dz < 1e-6)) {
+          selectionBox.visible = false;
+          return;
+        }
+        selectionBox.visible = true;
+      }catch{
+        selectionBox.visible = false;
+      }
+    }
 
     // ---------- Character animation state ----------
     const anim = {
@@ -1483,56 +1513,27 @@ const depthTex = await loadAndDecodeDepthTexture("./depth.png");
       ch.runtimeUid = ch.runtimeUid || `runtime_${characterRuntimeSeq++}`;
       return ch;
     }
-    function _setCharacterOutlineVisible(ch, on){
-      if (!ch || !Array.isArray(ch.selectionOutlineShells)) return;
-      for (const shell of ch.selectionOutlineShells){ if (shell) shell.visible = !!on; }
-    }
-    function _syncSelectionOutlineShell(src, shell){
-      if (!src || !shell) return;
-      try { shell.visible = !!src.visible; } catch {}
-      try { shell.position.copy(src.position); } catch {}
-      try { shell.quaternion.copy(src.quaternion); } catch {}
-      try {
-        const outlineBoost = shell.userData && Number.isFinite(shell.userData.outlineBoost) ? shell.userData.outlineBoost : 1.055;
-        shell.scale.copy(src.scale).multiplyScalar(outlineBoost);
-      } catch {}
-      if (src.isSkinnedMesh){
-        try { shell.bindMode = src.bindMode; } catch {}
-        try { shell.bindMatrix.copy(src.bindMatrix); } catch {}
-        try { shell.bindMatrixInverse.copy(src.bindMatrixInverse); } catch {}
-        try { shell.skeleton = src.skeleton; } catch {}
-      }
-      if (src.morphTargetInfluences && shell.morphTargetInfluences){
-        const n = Math.min(src.morphTargetInfluences.length, shell.morphTargetInfluences.length);
-        for (let i=0; i<n; i++) shell.morphTargetInfluences[i] = src.morphTargetInfluences[i];
-      }
-      try { shell.updateMatrixWorld(true); } catch {}
-    }
-    function _refreshCharacterSelectionVisuals(){
-      for (const ch of characters){ _setCharacterOutlineVisible(ch, activeCharacter === ch); }
-    }
-    function clearActiveCharacter({ refreshMenu=true } = {}){
-      _saveActiveCharacterAnimState();
-      activeCharacter = null;
-      pickables = [];
-      _refreshCharacterSelectionVisuals();
-      try { updateActorBBox(); } catch {}
-      if (refreshMenu && animMenuEl && animMenuEl.style.display !== 'none') {
-        try { buildAnimMenuItems(); } catch {}
-      }
-    }
     function setActiveCharacter(ch, { refreshMenu=true } = {}){
-      if (!ch) { clearActiveCharacter({ refreshMenu }); return; }
+      if (!ch){
+        if (activeCharacter) _saveActiveCharacterAnimState();
+        activeCharacter = null;
+        pickables = [];
+        try { updateSelectionOutline(); } catch {}
+        if (refreshMenu && animMenuEl && animMenuEl.style.display !== 'none') {
+          try { buildAnimMenuItems(); } catch {}
+        }
+        return;
+      }
       if (activeCharacter === ch) {
-        _refreshCharacterSelectionVisuals();
+        try { updateSelectionOutline(); } catch {}
         return;
       }
       _saveActiveCharacterAnimState();
       activeCharacter = ch;
       pickables = Array.isArray(ch.pickables) ? ch.pickables.slice() : [];
       _loadAnimStateIntoGlobals(ch.animState);
-      _refreshCharacterSelectionVisuals();
       try { updateActorBBox(); } catch {}
+      try { updateSelectionOutline(); } catch {}
       if (refreshMenu && animMenuEl && animMenuEl.style.display !== 'none') {
         try { buildAnimMenuItems(); } catch {}
       }
@@ -1550,198 +1551,6 @@ const depthTex = await loadAndDecodeDepthTexture("./depth.png");
       }
       return null;
     }
-    function _removeCharacterSelectionHelpers(ch){
-      if (!ch) return;
-      if (Array.isArray(ch.selectionOutlineShells)){
-        for (const shell of ch.selectionOutlineShells){
-          try { shell.parent && shell.parent.remove(shell); } catch {}
-          try { shell.material && shell.material.dispose && shell.material.dispose(); } catch {}
-        }
-      }
-      ch.selectionOutlineShells = [];
-      if (ch.selectionProxy){
-        try { ch.selectionProxy.parent && ch.selectionProxy.parent.remove(ch.selectionProxy); } catch {}
-        try { ch.selectionProxy.geometry && ch.selectionProxy.geometry.dispose && ch.selectionProxy.geometry.dispose(); } catch {}
-        try { ch.selectionProxy.material && ch.selectionProxy.material.dispose && ch.selectionProxy.material.dispose(); } catch {}
-      }
-      ch.selectionProxy = null;
-    }
-    function _ensureCharacterSelectionProxy(ch){
-      if (!ch) return null;
-      if (ch.selectionProxy) return ch.selectionProxy;
-      const proxy = new THREE.Mesh(
-        new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshBasicMaterial({
-          transparent: true,
-          opacity: 0,
-          depthWrite: false,
-          depthTest: false,
-          colorWrite: false,
-          toneMapped: false,
-        })
-      );
-      proxy.name = `__selectionProxy_${ch.runtimeUid || ch.id || 'char'}`;
-      proxy.userData = proxy.userData || {};
-      proxy.userData.characterId = ch.id;
-      proxy.userData.characterRuntimeUid = ch.runtimeUid;
-      proxy.userData.isSelectionProxy = true;
-      proxy.renderOrder = 9998;
-      scene3d.add(proxy);
-      ch.selectionProxy = proxy;
-      return proxy;
-    }
-    function _refreshSkinnedBoundsForCharacter(ch){
-      if (!ch || !Array.isArray(ch.pickables)) return;
-      for (const o of ch.pickables){
-        if (!o || !o.isMesh || !o.geometry) continue;
-        if (o.isSkinnedMesh){
-          try { if (typeof o.computeBoundingSphere === 'function') o.computeBoundingSphere(); } catch {}
-          try { if (typeof o.computeBoundingBox === 'function') o.computeBoundingBox(); } catch {}
-        } else {
-          try { if (!o.geometry.boundingSphere && typeof o.geometry.computeBoundingSphere === 'function') o.geometry.computeBoundingSphere(); } catch {}
-          try { if (!o.geometry.boundingBox && typeof o.geometry.computeBoundingBox === 'function') o.geometry.computeBoundingBox(); } catch {}
-        }
-      }
-    }
-    function _updateCharacterSelectionProxy(ch){
-      const proxy = _ensureCharacterSelectionProxy(ch);
-      if (!proxy || !ch || !ch.group) return;
-      try { ch.group.updateMatrixWorld(true); } catch {}
-      _refreshSkinnedBoundsForCharacter(ch);
-      const box = new THREE.Box3().setFromObject(ch.group);
-      if (!box || box.isEmpty()){
-        proxy.visible = false;
-        return;
-      }
-      const size = new THREE.Vector3();
-      const center = new THREE.Vector3();
-      box.getSize(size);
-      box.getCenter(center);
-      const pad = Math.max(0.06, size.length() * 0.025);
-      proxy.visible = true;
-      proxy.position.copy(center);
-      proxy.quaternion.identity();
-      proxy.scale.set(
-        Math.max(size.x + pad, 0.12),
-        Math.max(size.y + pad, 0.12),
-        Math.max(size.z + pad, 0.12),
-      );
-      proxy.updateMatrixWorld(true);
-    }
-    function _rebuildCharacterSelectionOutline(ch){
-      if (!ch || !ch.group) return;
-      _removeCharacterSelectionHelpers(ch);
-      _ensureCharacterSelectionProxy(ch);
-      ch.selectionOutlineShells = [];
-      const outlineMatBase = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        side: THREE.BackSide,
-        transparent: false,
-        opacity: 1.0,
-        depthWrite: false,
-        depthTest: false,
-        toneMapped: false,
-        fog: false,
-      });
-      const meshes = Array.isArray(ch.pickables) ? ch.pickables : [];
-      for (const src of meshes){
-        if (!src || !src.isMesh || !src.parent) continue;
-        const mat = outlineMatBase.clone();
-        let shell = null;
-        if (src.isSkinnedMesh){
-          shell = new THREE.SkinnedMesh(src.geometry, mat);
-          try { shell.bind(src.skeleton, src.bindMatrix); } catch {}
-          try { shell.bindMode = src.bindMode; } catch {}
-          try { shell.skeleton = src.skeleton; } catch {}
-          try { shell.bindMatrix.copy(src.bindMatrix); } catch {}
-          try { shell.bindMatrixInverse.copy(src.bindMatrixInverse); } catch {}
-        } else {
-          shell = new THREE.Mesh(src.geometry, mat);
-        }
-        shell.name = `${src.name || 'mesh'}__selectionShell`;
-        shell.userData = shell.userData || {};
-        shell.userData.characterId = ch.id;
-        shell.userData.characterRuntimeUid = ch.runtimeUid;
-        shell.userData.isSelectionOutline = true;
-        shell.userData.ignorePick = true;
-        shell.userData.sourceMeshUuid = src.uuid;
-        shell.userData.outlineBoost = src.isSkinnedMesh ? 1.065 : 1.045;
-        if (src.morphTargetDictionary) shell.morphTargetDictionary = src.morphTargetDictionary;
-        if (src.morphTargetInfluences) shell.morphTargetInfluences = src.morphTargetInfluences.slice();
-        _syncSelectionOutlineShell(src, shell);
-        shell.renderOrder = 10000;
-        shell.frustumCulled = false;
-        shell.visible = false;
-        src.parent.add(shell);
-        ch.selectionOutlineShells.push(shell);
-      }
-      _updateCharacterSelectionProxy(ch);
-      _refreshCharacterSelectionVisuals();
-    }
-    function _syncCharacterSelectionHelpers(ch){
-      if (!ch) return;
-      try { ch.group && ch.group.updateMatrixWorld(true); } catch {}
-      try { _refreshSkinnedBoundsForCharacter(ch); } catch {}
-      try { _updateCharacterSelectionProxy(ch); } catch {}
-      if (Array.isArray(ch.selectionOutlineShells) && Array.isArray(ch.pickables)){
-        const srcByUuid = new Map(ch.pickables.filter(Boolean).map(o => [o.uuid, o]));
-        for (const shell of ch.selectionOutlineShells){
-          const src = shell && shell.userData ? srcByUuid.get(shell.userData.sourceMeshUuid) : null;
-          if (src) {
-            try { _syncSelectionOutlineShell(src, shell); } catch {}
-          }
-        }
-      }
-    }
-    function _syncAllCharacterSelectionHelpers(){
-      for (const ch of characters) _syncCharacterSelectionHelpers(ch);
-      _refreshCharacterSelectionVisuals();
-    }
-    function _getCharacterScreenRect(ch, padPx = 10){
-      if (!ch || !ch.group || !renderer || !camera) return null;
-      const box = new THREE.Box3();
-      try { box.setFromObject(ch.group); } catch {}
-      if (!box || box.isEmpty()) return null;
-      const rect = renderer.domElement.getBoundingClientRect();
-      const min = box.min, max = box.max;
-      const pts = [
-        new THREE.Vector3(min.x, min.y, min.z),
-        new THREE.Vector3(max.x, min.y, min.z),
-        new THREE.Vector3(min.x, max.y, min.z),
-        new THREE.Vector3(max.x, max.y, min.z),
-        new THREE.Vector3(min.x, min.y, max.z),
-        new THREE.Vector3(max.x, min.y, max.z),
-        new THREE.Vector3(min.x, max.y, max.z),
-        new THREE.Vector3(max.x, max.y, max.z),
-      ];
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      let any = false;
-      for (const p of pts){
-        try { p.project(camera); } catch { continue; }
-        if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.z)) continue;
-        const sx = rect.left + (p.x * 0.5 + 0.5) * rect.width;
-        const sy = rect.top + (-p.y * 0.5 + 0.5) * rect.height;
-        if (!Number.isFinite(sx) || !Number.isFinite(sy)) continue;
-        minX = Math.min(minX, sx); minY = Math.min(minY, sy);
-        maxX = Math.max(maxX, sx); maxY = Math.max(maxY, sy);
-        any = true;
-      }
-      if (!any) return null;
-      return { minX:minX-padPx, minY:minY-padPx, maxX:maxX+padPx, maxY:maxY+padPx };
-    }
-    function _pointWithinCharacterScreenRect(ch, clientX, clientY, padPx = 10){
-      const r = _getCharacterScreenRect(ch, padPx);
-      if (!r) return false;
-      return clientX >= r.minX && clientX <= r.maxX && clientY >= r.minY && clientY <= r.maxY;
-    }
-    function _prepareCharacterPicking(){
-      updateCameraFromUI();
-      camera.updateMatrixWorld(true);
-      scene3d.updateMatrixWorld(true);
-      _syncAllCharacterSelectionHelpers();
-      if (anim.root) anim.root.updateMatrixWorld(true);
-    }
-
     function _getCharacterDisplayName(ch, idx){
       const base = (ch && ch.name) ? String(ch.name) : `Character ${idx+1}`;
       const short = ch && ch.runtimeUid ? String(ch.runtimeUid).replace(/^runtime_/, '#') : `#${idx+1}`;
@@ -1756,7 +1565,6 @@ const depthTex = await loadAndDecodeDepthTexture("./depth.png");
       for (let i=characters.length-1; i>=0; i--){
         const ch = characters[i];
         if (ch === gregoryCharacter) continue;
-        try { _removeCharacterSelectionHelpers(ch); } catch {}
         try { scene3d.remove(ch.group); } catch {}
         characters.splice(i,1);
       }
@@ -1775,7 +1583,6 @@ const depthTex = await loadAndDecodeDepthTexture("./depth.png");
       duration: 0,
     });
     activeCharacter = gregoryCharacter;
-    _refreshCharacterSelectionVisuals();
 
     function _arrayBufferToBase64(buf){
       let binary = '';
@@ -4195,7 +4002,6 @@ const mouth = (() => {
         });
         root.updateMatrixWorld(true);
         gregoryCharacter.pickables = pickables.slice();
-        _rebuildCharacterSelectionOutline(gregoryCharacter);
 
         
 // Setup animations (if present)
@@ -5222,10 +5028,8 @@ float bgDepthFiltered(vec2 suv){
       if (prevActive && prevActive !== ch){
         try { prevActive.group.updateMatrixWorld(true); } catch {}
       }
-      _rebuildCharacterSelectionOutline(ch);
       if (opts.select !== false) setActiveCharacter(ch, { refreshMenu:false });
       else if (prevActive) setActiveCharacter(prevActive, { refreshMenu:false });
-      else _refreshCharacterSelectionVisuals();
       return ch;
     }
     // ---------- Project Export/Import (native .3dmmproj JSON) ----------
@@ -5726,40 +5530,63 @@ if (proj.foley && foley && foley.loadProjectData){
     }
 
     function pickActor(clientX, clientY){
-      _prepareCharacterPicking();
+      // ensure camera matches UI *now* (fix grabbing after horizon/pitch changes)
+      updateCameraFromUI();
+      // Make sure world matrices are up to date BEFORE raycasting
+      camera.updateMatrixWorld(true);
+      scene3d.updateMatrixWorld(true);
+      for (const ch of characters){ try{ ch.group.updateMatrixWorld(true); }catch{} }
+      if (anim.root) anim.root.updateMatrixWorld(true);
 
       const { x, y } = clientToNDC(clientX, clientY);
       ndc.set(x, y);
       raycaster.setFromCamera(ndc, camera);
 
-      const meshTargets = characters.flatMap(ch => (Array.isArray(ch.pickables) && ch.pickables.length) ? ch.pickables.filter(o => !(o && o.userData && o.userData.ignorePick)) : []);
-      const meshHits = raycaster.intersectObjects(meshTargets, true);
-      if (meshHits.length) return meshHits[0];
+      // Prefer explicit mesh list if we have it (more robust across GLB structures)
+      const targets = characters.flatMap(ch => (Array.isArray(ch.pickables) && ch.pickables.length) ? ch.pickables : [ch.group]);
+      const hits = raycaster.intersectObjects(targets, true);
+      if (!hits.length) return null;
+      return hits[0];
+    }
 
-      const proxyTargets = characters.map(ch => ch.selectionProxy).filter(Boolean);
-      const proxyHits = raycaster.intersectObjects(proxyTargets, false);
-      for (const hit of proxyHits){
-        const ch = findCharacterByObject(hit.object);
-        if (!ch) continue;
-        if (_pointWithinCharacterScreenRect(ch, clientX, clientY, 12)) return hit;
+    function _getCharacterScreenRect(ch){
+      try{
+        const box = new THREE.Box3().setFromObject(ch.group);
+        if (box.isEmpty()) return null;
+        const min = box.min, max = box.max;
+        const pts = [
+          new THREE.Vector3(min.x, min.y, min.z), new THREE.Vector3(min.x, min.y, max.z),
+          new THREE.Vector3(min.x, max.y, min.z), new THREE.Vector3(min.x, max.y, max.z),
+          new THREE.Vector3(max.x, min.y, min.z), new THREE.Vector3(max.x, min.y, max.z),
+          new THREE.Vector3(max.x, max.y, min.z), new THREE.Vector3(max.x, max.y, max.z),
+        ];
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, minDepth = Infinity;
+        for (const p of pts){
+          p.project(camera);
+          if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.z)) continue;
+          const sx = (p.x * 0.5 + 0.5) * innerWidth;
+          const sy = (-p.y * 0.5 + 0.5) * innerHeight;
+          minX = Math.min(minX, sx); minY = Math.min(minY, sy);
+          maxX = Math.max(maxX, sx); maxY = Math.max(maxY, sy);
+          minDepth = Math.min(minDepth, p.z);
+        }
+        if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX) || !Number.isFinite(maxY)) return null;
+        return { minX, minY, maxX, maxY, minDepth, area: Math.max(1, (maxX - minX) * (maxY - minY)) };
+      }catch{
+        return null;
       }
-      return null;
     }
 
     function pickCharacterCandidates(clientX, clientY){
-      _prepareCharacterPicking();
+      updateCameraFromUI();
+      camera.updateMatrixWorld(true);
+      scene3d.updateMatrixWorld(true);
+      for (const ch of characters){ try{ ch.group.updateMatrixWorld(true); }catch{} }
       const { x, y } = clientToNDC(clientX, clientY);
       ndc.set(x, y);
       raycaster.setFromCamera(ndc, camera);
-      const meshTargets = characters.flatMap(ch => (Array.isArray(ch.pickables) && ch.pickables.length) ? ch.pickables.filter(o => !(o && o.userData && o.userData.ignorePick)) : []);
-      const proxyTargets = characters.map(ch => ch.selectionProxy).filter(Boolean);
-      const meshHits = raycaster.intersectObjects(meshTargets, true);
-      const proxyHits = raycaster.intersectObjects(proxyTargets, false).filter((hit)=>{
-        const ch = findCharacterByObject(hit.object);
-        return !!ch && _pointWithinCharacterScreenRect(ch, clientX, clientY, 12);
-      });
-      const hits = [...meshHits, ...proxyHits];
-      hits.sort((a,b)=> (a.distance - b.distance));
+      const targets = characters.flatMap(ch => (Array.isArray(ch.pickables) && ch.pickables.length) ? ch.pickables : [ch.group]);
+      const hits = raycaster.intersectObjects(targets, true);
       const seen = new Set();
       const out = [];
       for (const hit of hits){
@@ -5768,6 +5595,21 @@ if (proj.foley && foley && foley.loadProjectData){
         seen.add(ch.runtimeUid);
         out.push(ch);
       }
+
+      // Fallback: use an expanded screen-space rect so animated/moving characters stay clickable.
+      const fallback = [];
+      for (const ch of characters){
+        if (seen.has(ch.runtimeUid)) continue;
+        const rect = _getCharacterScreenRect(ch);
+        if (!rect) continue;
+        const w = Math.max(0, rect.maxX - rect.minX);
+        const h = Math.max(0, rect.maxY - rect.minY);
+        const pad = Math.max(22, Math.min(56, Math.max(w, h) * 0.12));
+        if (clientX < rect.minX - pad || clientX > rect.maxX + pad || clientY < rect.minY - pad || clientY > rect.maxY + pad) continue;
+        fallback.push({ ch, depth: rect.minDepth, area: rect.area });
+      }
+      fallback.sort((a,b)=> (a.depth - b.depth) || (a.area - b.area));
+      for (const item of fallback) out.push(item.ch);
       return out;
     }
     function _appendCharacterSelectorSection(el, candidates){
@@ -5882,8 +5724,7 @@ if (proj.foley && foley && foley.loadProjectData){
       const candidates = pickCharacterCandidates(e.clientX, e.clientY);
       const hit = pickActor(e.clientX, e.clientY);
       if (!hit && !candidates.length) {
-        clearActiveCharacter({ refreshMenu:false });
-        setCursor("default");
+        setActiveCharacter(null, { refreshMenu:false });
         return;
       }
       const pickedCharacter = (activeCharacter && candidates.includes(activeCharacter))
@@ -6230,7 +6071,6 @@ if (proj.foley && foley && foley.loadProjectData){
 
       applyBrightnessFromUI();
       updateCharReadout();
-      _syncAllCharacterSelectionHelpers();
 
       const rot = rotStepsFromDeg(ui.rot.value);
       const sx = +ui.sx.value, sy = +ui.sy.value;
@@ -6296,6 +6136,7 @@ if (proj.foley && foley && foley.loadProjectData){
       overlayMat.uniforms.uRot.value = rot;
       overlayMat.uniforms.uAlpha.value = +ui.overlay.value;
 
+      updateSelectionOutline();
 
       // --- Render to offscreen scene target ---
       // Render linear HDR into rtScene (tone mapping happens only when presenting to screen)

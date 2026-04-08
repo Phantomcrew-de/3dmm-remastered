@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bilder nach Ordner umbenennen & als ZIP exportieren</title>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121933;
+      --panel-2: #1a2446;
+      --text: #eef3ff;
+      --muted: #a7b3d1;
+      --accent: #78a6ff;
+      --accent-2: #9bffd1;
+      --danger: #ff7b8b;
+      --border: rgba(255,255,255,0.12);
+      --shadow: 0 18px 45px rgba(0,0,0,0.28);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(120,166,255,0.20), transparent 32%),
+        radial-gradient(circle at top right, rgba(155,255,209,0.12), transparent 28%),
+        linear-gradient(180deg, #0a1021, #070b17 68%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.3fr 0.7fr;
+      gap: 20px;
+      margin-bottom: 22px;
+    }
+
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+
+    .hero-main {
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(1.8rem, 2.6vw, 3rem);
+      line-height: 1.08;
+      letter-spacing: -0.03em;
+    }
+
+    p {
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .chip {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 0.92rem;
+    }
+
+    .hero-side {
+      padding: 20px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .stat {
+      padding: 14px;
+      border-radius: 14px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 1.35rem;
+      font-weight: 700;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 20px;
+    }
+
+    .panel {
+      padding: 20px;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.1rem;
+      letter-spacing: -0.02em;
+    }
+
+    .dropzone {
+      border: 2px dashed rgba(120,166,255,0.5);
+      background: rgba(120,166,255,0.08);
+      border-radius: 18px;
+      padding: 22px;
+      text-align: center;
+      transition: 0.2s ease;
+      margin-bottom: 16px;
+    }
+
+    .dropzone.dragover {
+      transform: translateY(-1px);
+      border-color: var(--accent-2);
+      background: rgba(155,255,209,0.12);
+    }
+
+    .dropzone strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 1rem;
+    }
+
+    .btn-row,
+    .inline-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button,
+    .button-like {
+      border: 0;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 0.96rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+    }
+
+    button:hover,
+    .button-like:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+    .primary { background: linear-gradient(135deg, var(--accent), #5c86ff); color: white; }
+    .secondary { background: #243158; color: white; }
+    .ghost { background: rgba(255,255,255,0.06); color: var(--text); border: 1px solid var(--border); }
+    .danger { background: rgba(255,123,139,0.18); color: #ffd6db; border: 1px solid rgba(255,123,139,0.35); }
+
+    .hint {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-top: 12px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 16px;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 0.94rem;
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select,
+    input[type="range"] {
+      width: 100%;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      background: #111831;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.95rem;
+      outline: none;
+    }
+
+    input[type="checkbox"] {
+      transform: translateY(1px);
+    }
+
+    .subtle-box {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .list-box {
+      max-height: 380px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: rgba(255,255,255,0.03);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.93rem;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #182141;
+      z-index: 1;
+      font-size: 0.84rem;
+      color: #c9d5f5;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.9em;
+      word-break: break-word;
+    }
+
+    .progress-wrap {
+      display: grid;
+      gap: 10px;
+    }
+
+    progress {
+      width: 100%;
+      height: 16px;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .status {
+      color: var(--muted);
+      min-height: 1.4em;
+      white-space: pre-wrap;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    .muted { color: var(--muted); }
+    .ok { color: var(--accent-2); }
+    .warn { color: #ffd28f; }
+
+    @media (max-width: 980px) {
+      .hero,
+      .grid { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media (max-width: 640px) {
+      .wrap { padding: 16px; }
+      .stats { grid-template-columns: 1fr; }
+      th:nth-child(2), td:nth-child(2) { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="card hero-main">
+        <h1>PNG/JPG aus mehreren Ordnern umbenennen, optional konvertieren und als ZIP herunterladen</h1>
+        <p>
+          Dieses Tool liest Bilder aus mehreren Ordnern, benennt sie pro Ordner automatisch um
+          (<span class="mono">Ordnername_001</span>, <span class="mono">Ordnername_002</span> …),
+          behält die Ordnerstruktur im ZIP bei und kann optional nach JPG konvertieren.
+        </p>
+        <div class="chip-row">
+          <div class="chip">Ordnerstruktur bleibt erhalten</div>
+          <div class="chip">Mehrere Ordner per Drag & Drop</div>
+          <div class="chip">PNG behalten oder JPG erzeugen</div>
+          <div class="chip">JPG-Qualität einstellbar</div>
+        </div>
+      </div>
+      <div class="card hero-side">
+        <div class="stats">
+          <div class="stat">
+            <div class="stat-label">Ordner</div>
+            <div class="stat-value" id="folderCount">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Bilder</div>
+            <div class="stat-value" id="fileCount">0</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Im ZIP</div>
+            <div class="stat-value" id="zipCount">0</div>
+          </div>
+        </div>
+        <div class="subtle-box">
+          <strong>Hinweis:</strong> Im Browser lässt sich für <b>JPG</b> die Qualität steuern.
+          Für <b>PNG</b> gibt es in Browser-APIs normalerweise keinen frei einstellbaren Qualitätsregler.
+          PNG bleibt verlustfrei, aber die Dateigröße ist browserabhängig.
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card panel">
+        <h2>1. Dateien hinzufügen</h2>
+        <div id="dropzone" class="dropzone">
+          <strong>Ordner hier hineinziehen</strong>
+          <div class="muted">Am besten mehrere Ordner per Drag & Drop. Alternativ einen Ordner über den Picker auswählen.</div>
+        </div>
+
+        <div class="btn-row">
+          <button class="primary" id="pickFolderBtn">Ordner auswählen</button>
+          <button class="ghost" id="pickFilesBtn">Dateien auswählen</button>
+          <button class="danger" id="clearBtn">Alles leeren</button>
+        </div>
+
+        <input id="folderInput" type="file" webkitdirectory multiple hidden />
+        <input id="filesInput" type="file" accept="image/png,image/jpeg,.png,.jpg,.jpeg" multiple hidden />
+
+        <div class="hint">
+          <b>Empfohlen:</b> Mehrere Ordner per Drag & Drop auf die Fläche ziehen. Der Ordner-Picker kann je nach Browser nur einen Ordner auf einmal zulassen.
+        </div>
+
+        <hr style="border-color: rgba(255,255,255,0.08); margin: 18px 0;">
+
+        <h2>2. Optionen</h2>
+        <div class="controls">
+          <div class="field">
+            <label for="outputFormat">Ausgabeformat</label>
+            <select id="outputFormat">
+              <option value="keep">Original beibehalten (PNG bleibt PNG, JPG bleibt JPG)</option>
+              <option value="png">Alles als PNG</option>
+              <option value="jpg">Alles als JPG</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="qualityRange">JPG-Qualität: <span id="qualityValue">0.85</span></label>
+            <input id="qualityRange" type="range" min="0.1" max="1" step="0.01" value="0.85" />
+          </div>
+
+          <div class="field">
+            <label for="digitsInput">Nummerierung Stellen</label>
+            <input id="digitsInput" type="number" min="2" max="6" value="3" />
+          </div>
+
+          <div class="field">
+            <label for="separatorInput">Trennzeichen</label>
+            <input id="separatorInput" type="text" value="_" maxlength="5" />
+          </div>
+
+          <div class="field">
+            <label class="inline-row" style="align-items:center; gap:8px; font-weight:500;">
+              <input id="flattenCheckbox" type="checkbox" />
+              <span>Unterordner innerhalb eines ausgewählten Ordners ignorieren und direkt im Ordner neu benennen</span>
+            </label>
+          </div>
+        </div>
+
+        <hr style="border-color: rgba(255,255,255,0.08); margin: 18px 0;">
+
+        <div class="progress-wrap">
+          <button class="primary" id="buildZipBtn" disabled>ZIP erzeugen & herunterladen</button>
+          <progress id="progressBar" max="100" value="0"></progress>
+          <div class="status" id="statusText">Noch keine Dateien geladen.</div>
+        </div>
+
+        <div class="footer-note">
+          Die Bilder werden lokal im Browser verarbeitet. Es wird nichts hochgeladen.
+        </div>
+      </div>
+
+      <div class="card panel">
+        <h2>Vorschau der Umbenennung</h2>
+        <div class="list-box">
+          <table>
+            <thead>
+              <tr>
+                <th>Neu im ZIP</th>
+                <th>Original</th>
+                <th>Ordner</th>
+              </tr>
+            </thead>
+            <tbody id="previewBody">
+              <tr>
+                <td colspan="3" class="muted">Noch keine Bilder geladen.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const state = {
+      files: [],
+      previewRows: [],
+      lastZipEntries: 0,
+    };
+
+    const folderCountEl = document.getElementById('folderCount');
+    const fileCountEl = document.getElementById('fileCount');
+    const zipCountEl = document.getElementById('zipCount');
+    const previewBody = document.getElementById('previewBody');
+    const statusText = document.getElementById('statusText');
+    const progressBar = document.getElementById('progressBar');
+    const buildZipBtn = document.getElementById('buildZipBtn');
+    const qualityRange = document.getElementById('qualityRange');
+    const qualityValue = document.getElementById('qualityValue');
+    const outputFormat = document.getElementById('outputFormat');
+    const digitsInput = document.getElementById('digitsInput');
+    const separatorInput = document.getElementById('separatorInput');
+    const flattenCheckbox = document.getElementById('flattenCheckbox');
+    const dropzone = document.getElementById('dropzone');
+
+    document.getElementById('pickFolderBtn').addEventListener('click', () => document.getElementById('folderInput').click());
+    document.getElementById('pickFilesBtn').addEventListener('click', () => document.getElementById('filesInput').click());
+    document.getElementById('clearBtn').addEventListener('click', clearAll);
+    document.getElementById('buildZipBtn').addEventListener('click', buildZipAndDownload);
+    document.getElementById('folderInput').addEventListener('change', onFolderInput);
+    document.getElementById('filesInput').addEventListener('change', onFilesInput);
+    qualityRange.addEventListener('input', () => qualityValue.textContent = Number(qualityRange.value).toFixed(2));
+    outputFormat.addEventListener('change', refreshPreview);
+    digitsInput.addEventListener('input', refreshPreview);
+    separatorInput.addEventListener('input', refreshPreview);
+    flattenCheckbox.addEventListener('change', refreshPreview);
+
+    ['dragenter', 'dragover'].forEach(type => {
+      dropzone.addEventListener(type, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropzone.classList.add('dragover');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(type => {
+      dropzone.addEventListener(type, (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (type === 'drop' || !dropzone.contains(e.relatedTarget)) {
+          dropzone.classList.remove('dragover');
+        }
+      });
+    });
+
+    dropzone.addEventListener('drop', async (e) => {
+      const items = [...(e.dataTransfer?.items || [])];
+      if (!items.length) return;
+
+      setStatus('Ordner werden eingelesen …');
+      const gathered = [];
+
+      for (const item of items) {
+        const entry = item.webkitGetAsEntry?.();
+        if (entry) {
+          await walkEntry(entry, '', gathered);
+        }
+      }
+
+      if (!gathered.length && e.dataTransfer?.files?.length) {
+        await addFilesFromList(e.dataTransfer.files, false);
+        return;
+      }
+
+      addPreparedFiles(gathered);
+    });
+
+    async function walkEntry(entry, parentPath, out) {
+      if (entry.isFile) {
+        await new Promise((resolve) => {
+          entry.file((file) => {
+            if (isSupportedImage(file)) {
+              out.push(enrichFile(file, parentPath ? parentPath + '/' + file.name : file.name));
+            }
+            resolve();
+          });
+        });
+      } else if (entry.isDirectory) {
+        const dirPath = parentPath ? parentPath + '/' + entry.name : entry.name;
+        const reader = entry.createReader();
+        const entries = await readAllDirectoryEntries(reader);
+        for (const child of entries) {
+          await walkEntry(child, dirPath, out);
+        }
+      }
+    }
+
+    async function readAllDirectoryEntries(reader) {
+      const entries = [];
+      while (true) {
+        const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+        if (!batch.length) break;
+        entries.push(...batch);
+      }
+      return entries;
+    }
+
+    async function onFolderInput(e) {
+      await addFilesFromList(e.target.files, true);
+      e.target.value = '';
+    }
+
+    async function onFilesInput(e) {
+      await addFilesFromList(e.target.files, false);
+      e.target.value = '';
+    }
+
+    async function addFilesFromList(fileList, expectRelativePath) {
+      const files = [...fileList]
+        .filter(isSupportedImage)
+        .map(file => enrichFile(file, expectRelativePath && file.webkitRelativePath ? file.webkitRelativePath : file.name));
+      addPreparedFiles(files);
+    }
+
+    function enrichFile(file, relativePath) {
+      return {
+        file,
+        relativePath,
+        ext: getExtension(file.name),
+      };
+    }
+
+    function addPreparedFiles(newFiles) {
+      const map = new Map(state.files.map(item => [item.relativePath + '|' + item.file.size + '|' + item.file.lastModified, item]));
+      for (const item of newFiles) {
+        const key = item.relativePath + '|' + item.file.size + '|' + item.file.lastModified;
+        if (!map.has(key)) map.set(key, item);
+      }
+      state.files = [...map.values()].sort((a, b) => a.relativePath.localeCompare(b.relativePath, 'de'));
+      refreshPreview();
+      setStatus(state.files.length ? 'Dateien geladen. Du kannst jetzt das ZIP erzeugen.' : 'Keine unterstützten Bilder gefunden.');
+    }
+
+    function clearAll() {
+      state.files = [];
+      state.previewRows = [];
+      state.lastZipEntries = 0;
+      progressBar.value = 0;
+      renderPreview();
+      updateStats();
+      buildZipBtn.disabled = true;
+      setStatus('Alles geleert.');
+    }
+
+    function refreshPreview() {
+      const digits = clampInt(Number(digitsInput.value) || 3, 2, 6);
+      digitsInput.value = digits;
+      const separator = (separatorInput.value || '_').slice(0, 5);
+      separatorInput.value = separator;
+
+      state.previewRows = createRenamePlan(state.files, {
+        format: outputFormat.value,
+        digits,
+        separator,
+        flatten: flattenCheckbox.checked,
+      });
+
+      state.lastZipEntries = state.previewRows.length;
+      renderPreview();
+      updateStats();
+      buildZipBtn.disabled = state.previewRows.length === 0;
+    }
+
+    function createRenamePlan(files, options) {
+      const groups = new Map();
+
+      for (const item of files) {
+        const pathParts = item.relativePath.split('/');
+        const fullFolderParts = pathParts.slice(0, -1);
+
+        let rootFolder = fullFolderParts[0] || 'Dateien';
+        let innerFolderParts = fullFolderParts.slice(1);
+
+        if (!fullFolderParts.length) {
+          rootFolder = 'Dateien';
+          innerFolderParts = [];
+        }
+
+        let numberingFolderName;
+        let zipFolderParts;
+
+        if (options.flatten) {
+          numberingFolderName = rootFolder;
+          zipFolderParts = [rootFolder];
+        } else {
+          numberingFolderName = fullFolderParts[fullFolderParts.length - 1] || rootFolder;
+          zipFolderParts = [rootFolder, ...innerFolderParts];
+        }
+
+        const groupKey = zipFolderParts.join('/');
+        if (!groups.has(groupKey)) {
+          groups.set(groupKey, {
+            rootFolder,
+            numberingFolderName,
+            zipFolderParts,
+            items: [],
+          });
+        }
+        groups.get(groupKey).items.push(item);
+      }
+
+      const rows = [];
+
+      [...groups.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0], 'de'))
+        .forEach(([groupKey, group]) => {
+          group.items.sort((a, b) => a.relativePath.localeCompare(b.relativePath, 'de'));
+          group.items.forEach((item, index) => {
+            const number = String(index + 1).padStart(options.digits, '0');
+            const safeFolderBase = sanitizeBaseName(group.numberingFolderName || 'Ordner');
+            const outputExt = decideOutputExtension(item.ext, options.format);
+            const newFileName = `${safeFolderBase}${options.separator}${number}.${outputExt}`;
+            const zipPath = [...group.zipFolderParts, newFileName].filter(Boolean).join('/');
+
+            rows.push({
+              source: item,
+              originalPath: item.relativePath,
+              folderLabel: groupKey || group.rootFolder,
+              zipPath,
+              outputExt,
+              newFileName,
+            });
+          });
+        });
+
+      return rows;
+    }
+
+    function renderPreview() {
+      previewBody.innerHTML = '';
+      if (!state.previewRows.length) {
+        previewBody.innerHTML = '<tr><td colspan="3" class="muted">Noch keine Bilder geladen.</td></tr>';
+        return;
+      }
+
+      const frag = document.createDocumentFragment();
+      for (const row of state.previewRows) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="mono">${escapeHtml(row.zipPath)}</td>
+          <td class="mono">${escapeHtml(row.originalPath)}</td>
+          <td>${escapeHtml(row.folderLabel)}</td>
+        `;
+        frag.appendChild(tr);
+      }
+      previewBody.appendChild(frag);
+    }
+
+    function updateStats() {
+      const folderSet = new Set();
+      for (const item of state.files) {
+        const parts = item.relativePath.split('/');
+        if (parts.length > 1) {
+          folderSet.add(parts.slice(0, -1).join('/'));
+        } else {
+          folderSet.add('Dateien');
+        }
+      }
+      folderCountEl.textContent = folderSet.size;
+      fileCountEl.textContent = state.files.length;
+      zipCountEl.textContent = state.lastZipEntries;
+    }
+
+    async function buildZipAndDownload() {
+      if (!state.previewRows.length) return;
+      buildZipBtn.disabled = true;
+      progressBar.value = 0;
+      setStatus('ZIP wird erzeugt …');
+
+      try {
+        const zip = new JSZip();
+        const quality = Number(qualityRange.value);
+        const total = state.previewRows.length;
+
+        for (let i = 0; i < total; i++) {
+          const row = state.previewRows[i];
+          setStatus(`Verarbeite ${i + 1} von ${total}: ${row.originalPath}`);
+          const blob = await transformImage(row.source.file, row.outputExt, quality);
+          zip.file(row.zipPath, blob);
+          progressBar.value = Math.round(((i + 1) / total) * 85);
+        }
+
+        setStatus('ZIP wird komprimiert …');
+        const zipBlob = await zip.generateAsync(
+          {
+            type: 'blob',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 9 },
+          },
+          (meta) => {
+            progressBar.value = 85 + Math.round(meta.percent * 0.15);
+          }
+        );
+
+        downloadBlob(zipBlob, `bilder_umbenannt_${timestampForFile()}.zip`);
+        progressBar.value = 100;
+        setStatus('Fertig. Das ZIP wurde heruntergeladen.');
+      } catch (error) {
+        console.error(error);
+        setStatus('Fehler: ' + (error?.message || String(error)));
+      } finally {
+        buildZipBtn.disabled = state.previewRows.length === 0;
+      }
+    }
+
+    async function transformImage(file, outputExt, quality) {
+      const originalExt = getExtension(file.name);
+      const shouldPassThrough =
+        (outputExt === 'png' && originalExt === 'png') ||
+        (outputExt === 'jpg' && (originalExt === 'jpg' || originalExt === 'jpeg'));
+
+      if (shouldPassThrough && outputFormat.value === 'keep') {
+        return file;
+      }
+
+      const bitmap = await createImageBitmap(file);
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext('2d', { alpha: outputExt === 'png' });
+
+      if (outputExt === 'jpg') {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+
+      const mime = outputExt === 'jpg' ? 'image/jpeg' : 'image/png';
+      return await new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            reject(new Error('Bild konnte nicht konvertiert werden.'));
+            return;
+          }
+          resolve(blob);
+        }, mime, outputExt === 'jpg' ? quality : undefined);
+      });
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+
+    function decideOutputExtension(originalExt, mode) {
+      const ext = originalExt === 'jpeg' ? 'jpg' : originalExt;
+      if (mode === 'keep') return ext === 'jpeg' ? 'jpg' : ext;
+      return mode;
+    }
+
+    function getExtension(name) {
+      return (name.split('.').pop() || '').toLowerCase().replace('jpeg', 'jpg');
+    }
+
+    function isSupportedImage(file) {
+      const ext = getExtension(file.name);
+      return ['png', 'jpg', 'jpeg'].includes(ext) || ['image/png', 'image/jpeg'].includes(file.type);
+    }
+
+    function sanitizeBaseName(name) {
+      return String(name)
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[<>:"/\\|?*]+/g, '-')
+        .replace(/\s+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'Ordner';
+    }
+
+    function clampInt(value, min, max) {
+      return Math.min(max, Math.max(min, Math.round(value)));
+    }
+
+    function timestampForFile() {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
+    }
+
+    function setStatus(message) {
+      statusText.textContent = message;
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>

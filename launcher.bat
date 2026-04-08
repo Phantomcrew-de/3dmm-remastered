@@ -4,7 +4,7 @@
 
     cd /d "%~dp0"
 
-    if not exist "index.html" (
+    if not exist "3dmm-editor.html" (
         echo Fehler: Keine index.html im selben Ordner gefunden:
         echo   %cd%
         pause
@@ -60,7 +60,7 @@ print()"
         exit /b 1
     )
 
-    set "URL=http://localhost:%PORT%/index.html"
+    set "URL=http://localhost:%PORT%/3dmm-editor.html"
 
     echo Starte lokalen Server mit: %PYTHON_CMD%
     echo Ordner: %cd%

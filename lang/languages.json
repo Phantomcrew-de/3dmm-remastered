@@ -1,0 +1,40 @@
+{
+  "default": "en",
+  "languages": [
+    {
+      "code": "en",
+      "name": "English",
+      "file": "en.json"
+    },
+    {
+      "code": "de",
+      "name": "Deutsch",
+      "file": "de.json"
+    },
+    {
+      "code": "fr",
+      "name": "Français",
+      "file": "fr.json"
+    },
+    {
+      "code": "it",
+      "name": "Italiano",
+      "file": "it.json"
+    },
+    {
+      "code": "es",
+      "name": "Español",
+      "file": "es.json"
+    },
+    {
+      "code": "ja",
+      "name": "日本語",
+      "file": "ja.json"
+    },
+    {
+      "code": "ru",
+      "name": "Русский",
+      "file": "ru.json"
+    }
+  ]
+}

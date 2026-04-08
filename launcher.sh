@@ -4,8 +4,8 @@
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     cd "$SCRIPT_DIR" || exit 1
 
-    if [ ! -f "index.html" ]; then
-      echo "Fehler: Keine index.html im selben Ordner gefunden:"
+    if [ ! -f "3dmm-editor.html" ]; then
+      echo "Fehler: Keine 3dmm-editor.html im selben Ordner gefunden:"
       echo "  $SCRIPT_DIR"
       exit 1
     fi
@@ -44,7 +44,7 @@ PY
       exit 1
     fi
 
-    URL="http://localhost:$PORT/index.html"
+    URL="http://localhost:$PORT/3dmm-editor.html"
 
     echo "Starte lokalen Server mit: $PYTHON_CMD"
     echo "Ordner: $SCRIPT_DIR"

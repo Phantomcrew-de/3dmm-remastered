@@ -160,7 +160,7 @@ const BG_BUNDLE_CACHE_LIMIT = 96;
 /** UI field keys that are serialised into project files. */
 const UI_FIELDS = [
   "overlay", "fmm", "horizon", "pitch", "camHeight",
-  "showH", "showGrid",
+  "showH", "showGrid", "drawSceneDepth",
   "shStr", "shRad", "shSoft", "shOx", "shOy",
   "exposure", "lightMul",
   "sx", "sy", "ox", "oy",

@@ -618,10 +618,11 @@ async function loadAndDecodeDepthTexture(url) {
 
 // greyscale decode (RGB → just use luminance or R channel)
 function decodeGreyscale(r, g, b) {
-    // fast path: assume already greyscale → r === g === b
-    // fallback: compute luminance if needed
-    if (r === g && g === b) return r;
-    return (0.299 * r + 0.587 * g + 0.114 * b) | 0;
+    // Decode the visible z-map brightness exactly like the old tree.js.renderer.html:
+    // white pixels mean near/front, black pixels mean far/back.
+    // The depth-clip shaders expect depth01: 0 = near/front, 1 = far/back.
+    const grey = (r === g && g === b) ? r : ((0.299 * r + 0.587 * g + 0.114 * b) | 0);
+    return 255 - grey;
 }
 
 
@@ -657,7 +658,9 @@ async function loadBMP8Bit(url) {
     for (let y = 0; y < h; y++) {
         const row = flipped ? (h - 1 - y) : y;
         for (let x = 0; x < width; x++) {
-            out[row * width + x] = dv.getUint8(ptr++);
+            // 8-bit BMP z-map uses the same convention as PNG/JPG z-maps:
+                // white = near/front, black = far/back. Store shader depth01 instead.
+                out[row * width + x] = 255 - dv.getUint8(ptr++);
         }
         ptr += rowSize - width;
     }
@@ -7888,7 +7891,7 @@ const PROJECT_MAGIC = "3DMM_NATIVE_PROJECT";
 const PROJECT_VERSION = 1;
 
 const UI_FIELDS = [
-    "overlay", "fmm", "horizon", "pitch", "camHeight", "showH",
+    "overlay", "fmm", "horizon", "pitch", "camHeight", "showH", "drawSceneDepth",
     "shStr", "shRad", "shSoft", "shOx", "shOy",
     "exposure", "lightMul",
     "sx", "sy", "ox", "oy", "rot", "fx", "fy", "bias", "clipSoft", "backDepthMul",
@@ -10713,6 +10716,34 @@ const presentMat = new THREE.ShaderMaterial({
 presentMat.toneMapped = true;
 presentScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), presentMat));
 
+// ---------- Developer depth draw mode ----------
+// Renders scene objects with their framebuffer depth value instead of their materials.
+// BasicDepthPacking outputs white at the near plane and black at the far plane.
+const sceneDepthDebugMaterial = new THREE.MeshDepthMaterial({
+    depthPacking: THREE.BasicDepthPacking,
+    side: THREE.DoubleSide,
+});
+sceneDepthDebugMaterial.blending = THREE.NoBlending;
+sceneDepthDebugMaterial.toneMapped = false;
+sceneDepthDebugMaterial.skinning = true;
+sceneDepthDebugMaterial.morphTargets = true;
+sceneDepthDebugMaterial.morphNormals = true;
+
+function drawSceneDepthBuffer() {
+    const prevOverride = scene3d.overrideMaterial;
+    const prevBackground = scene3d.background;
+    const prevEnvironment = scene3d.environment;
+
+    scene3d.overrideMaterial = sceneDepthDebugMaterial;
+    scene3d.background = null;
+    scene3d.environment = null;
+    renderer.render(scene3d, camera);
+
+    scene3d.overrideMaterial = prevOverride;
+    scene3d.background = prevBackground;
+    scene3d.environment = prevEnvironment;
+}
+
 
 function resizeRenderTargets() {
     renderer.getDrawingBufferSize(rtSize);
@@ -10940,16 +10971,20 @@ function loop(now) {
 
     renderer.setRenderTarget(rtScene);
     renderer.clear();
-    if (+ui.shStr.value > 0.0001) {
-        for (const info of shadowInfos) {
-            shadowMat.uniforms.uCenterUV.value.copy(info.uv);
-            shadowMat.uniforms.uCenterDepth01.value = info.depth01;
-            renderer.render(shadowScene, orthoCam);
+    if ((+ui.drawSceneDepth.value) > 0.5) {
+        drawSceneDepthBuffer();
+    } else {
+        if (+ui.shStr.value > 0.0001) {
+            for (const info of shadowInfos) {
+                shadowMat.uniforms.uCenterUV.value.copy(info.uv);
+                shadowMat.uniforms.uCenterDepth01.value = info.depth01;
+                renderer.render(shadowScene, orthoCam);
+            }
         }
+        renderOnionSkinPasses();
+        renderer.render(scene3d, camera);
+        if (+ui.overlay.value > 0.001) renderer.render(overlayScene, orthoCam);
     }
-    renderOnionSkinPasses();
-    renderer.render(scene3d, camera);
-    if (+ui.overlay.value > 0.001) renderer.render(overlayScene, orthoCam);
     renderer.setRenderTarget(null);
 
     renderer.toneMapping = _tm;

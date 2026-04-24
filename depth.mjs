@@ -287,6 +287,19 @@ function decodeSpectralRGBToIndex(r, g, b) {
   return bestI; // 0..255
 }
 
+function isGreyscalePixel(r, g, b) {
+  return Math.abs(r - g) <= 2 && Math.abs(g - b) <= 2 && Math.abs(r - b) <= 2;
+}
+
+function decodeDepthPixelToShaderDepth01Byte(r, g, b) {
+  if (isGreyscalePixel(r, g, b)) {
+    // Match tree.js.renderer.html: z-map white is near/front and black is far/back.
+    // Store shader depth01: 0 = near/front, 255 = far/back.
+    return 255 - r;
+  }
+  return decodeSpectralRGBToIndex(r, g, b);
+}
+
 async function loadAndDecodeDepthTexture(url) {
   const u = String(url || "");
   if (!u) throw new Error("Leere ZBuffer-URL.");
@@ -312,12 +325,17 @@ async function loadAndDecodeDepthTexture(url) {
     ctx.drawImage(img, 0, 0, w, h);
     const { data } = ctx.getImageData(0, 0, w, h);
 
-    const out = new Uint8Array(w * h); // R8: 0..255
+    const out = new Uint8Array(w * h); // R8 depth01 byte: 0=near/front, 255=far/back
+    let greyCount = 0;
     for (let p = 0, o = 0; o < out.length; o++, p += 4) {
       const r = data[p], g = data[p + 1], b = data[p + 2];
-      out[o] = decodeSpectralRGBToIndex(r, g, b);
+      if (isGreyscalePixel(r, g, b)) greyCount++;
+      out[o] = decodeDepthPixelToShaderDepth01Byte(r, g, b);
     }
-    BG_PERF.log("loadZBuffer spectral-decode", normalizeAssetPath(u), BG_PERF.fmt(performance.now() - tDecode), { w, h });
+    BG_PERF.log("loadZBuffer depth-decode", normalizeAssetPath(u), BG_PERF.fmt(performance.now() - tDecode), {
+      w, h,
+      mode: greyCount > out.length * 0.90 ? "greyscale-white-near" : "spectral"
+    });
 
     const tTex = performance.now();
     const tex = new THREE.DataTexture(out, w, h, THREE.RedFormat, THREE.UnsignedByteType);

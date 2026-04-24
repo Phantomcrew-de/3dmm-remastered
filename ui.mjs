@@ -152,6 +152,7 @@ export { ui, setLanguage, tr, trFormat, populateLanguageSelect, applyI18n, i18nO
       camHeight: $("camHeight"), camHeightV: $("camHeightV"),
       showH: $("showH"), showHV: $("showHV"),
       showGrid: $("showGrid"), showGridV: $("showGridV"),
+      drawSceneDepth: $("drawSceneDepth"), drawSceneDepthV: $("drawSceneDepthV"),
 
       shStr: $("shStr"), shStrV: $("shStrV"),
       shRad: $("shRad"), shRadV: $("shRadV"),
@@ -215,6 +216,7 @@ export { ui, setLanguage, tr, trFormat, populateLanguageSelect, applyI18n, i18nO
       if (ui.camHeightV) ui.camHeightV.textContent = (+ui.camHeight.value).toFixed(2);
       ui.showHV.textContent = ui.showH.value;
       ui.showGridV.textContent = ui.showGrid.value;
+      if (ui.drawSceneDepthV) ui.drawSceneDepthV.textContent = ui.drawSceneDepth.value;
 
       ui.shStrV.textContent = (+ui.shStr.value).toFixed(2);
       ui.shRadV.textContent = (+ui.shRad.value).toFixed(3);
@@ -293,6 +295,7 @@ export { ui, setLanguage, tr, trFormat, populateLanguageSelect, applyI18n, i18nO
 
 
     ui.showGrid.value = 0;
+    if (ui.drawSceneDepth) ui.drawSceneDepth.value = 0;
     ui.shStr.value = 0.35;
     ui.shRad.value = 0.110;
     ui.shSoft.value = 0.060;

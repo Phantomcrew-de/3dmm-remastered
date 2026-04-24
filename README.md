@@ -1,154 +1,138 @@
-# 3D Movie Maker Remastered – Web Editor Prototype
+# Simple Three.js + TypeScript + Vite Starter
 
-This repository contains an **early browser-based editor prototype** for the **3D Movie Maker Remastered Project**.
+This scaffolding lets you easily get started with using Three.js and TypeScript.
 
-The goal of the project is to recreate and modernize **Microsoft's 3D Movie Maker (1995)** as a **modern web application**, while preserving the charm and creative workflow of the original tool.
+![example scene](./assets/docs/example.png)
 
-This prototype demonstrates early editor functionality such as:
+## Features
 
-* scene navigation
-* character placement
-* animation triggering
-* recording actions into a timeline
-* basic character controls
+- Vite development environment
+- Full TypeScript support
+- Asset management
+- Debugging GUI and Stats
+- Social media and description overlay
+- Simple loading animation
+- Including shader chunks
+- [LYGIA Shader Library](https://lygia.xyz/) 
 
-The editor currently runs locally through a simple Python server.
+## Prerequisites
 
----
+- [Node.js](https://nodejs.org)
+- [yarn](https://yarnpkg.com) OR [npm](https://www.npmjs.com)
 
-# Installation
+> 💡 This project uses **yarn@3.2.1** and **npm@8.1.2**. Other versions might lead to different package resolutions, proceed with caution. Example commands use **yarn**.
 
-Clone or download the entire repository into a folder:
+## Installation
 
-```bash
-git clone https://github.com/Phantomcrew-de/3dmm-remastered.git
-cd 3dmm-remastered
-```
-
-Alternatively, download the repository as a ZIP and extract it.
-
----
-
-# Running the Editor
-
-Start a local Python server inside the project folder:
+To use this scaffolding, run the following command:
 
 ```bash
-python -m http.server
+git clone https://github.com/mayacoda/simple-threejs-typescript-starter my-threejs-project
+cd my-threejs-project
+yarn install
 ```
 
-Then open your browser and navigate to:
+> ✅ If you are on GitHub, create a new repository using this repository as a template by clicking the green **Use this template** button in the top right.
 
-```
-http://localhost:8000/3dmm-editor.html
-```
+## Development
 
----
+The starter includes a pre-configured Vite server which you can use to run and develop your project. To start the development server, run the following command:
 
-# Display Requirements
-
-To run the editor correctly:
-
-* Use a **monitor with a 16:9 aspect ratio**
-* Enter **fullscreen mode (F11)** in your browser
-
-If the aspect ratio is different, you may experience a **Z-buffer offset**.
-In this case, you can adjust the parameters in the **Developer Panel**.
-
-Press **M** to open or close the Developer Panel.
-
----
-
-# Basic Controls
-
-### Recording
-
-Recording starts after pressing **Rec** and then **dragging and dropping a character** into the scene.
-
----
-
-### Character Movement
-
-Move character:
-
-* **Mouse left-click + drag**
-* **W, A, S, D**
-* **Arrow keys**
-
----
-
-### Character Transform
-
-Scale character:
-
-```
-Shift
+```bash
+yarn dev
 ```
 
-Rotate character:
+To build the project, run:
 
-```
-Alt
-```
-
-Move character up/down:
-
-```
-Ctrl
+```bash
+yarn build
 ```
 
----
+And if you wish to automatically start a server to preview your build, you can run:
 
-### Character Actions
+```bash
+yarn build && yarn preview
+```
 
-Right-click on a character to open the **context menu** and configure movement or actions.
+### Engine
 
----
+The starter includes a utility `Engine` class which is responsible for setting up the renderer, render loop, scene, camera, and controls. All you have to do is provide a class that follows the `Experience` interface and pass it to the `Engine` constructor.
 
-# Creating Dialogue and Sound Effects
+```typescript
+// in src/main.ts
 
-If you want to **record dialogue for characters or create custom sound effects**, you can use our browser-based DAW:
+import { Engine } from './engine/Engine'
+import { Demo } from './demo/Demo'
 
-[Phantomcrew Web DAW](https://phantomcrew.de/daw/)
+new Engine({
+  canvas: document.querySelector('#canvas') as HTMLCanvasElement,
+  experience: Demo,
+  info: {
+    twitter: 'https://twitter.com/maya_ndljk',
+    github: 'https://github.com/mayacoda/simple-threejs-typescript-starter',
+    description: 'A simple Three.js + Typescript + Vite starter project',
+    documentTitle: 'Three.js + Typescript + Vite',
+    title: 'A cube on a plane',
+  },
+})
+```
 
-The tool allows you to **record, edit, and export audio** directly in your browser.
+Then inside the class which implements `Experience`, you have access to the entire engine and its components.
 
-Export your sounds as **WAV or MP3 files**, then import them into the game.
-Once added, they will become **available for use inside the editor** for dialogue, sound effects, or scene audio.
+```typescript
+// in src/demo/Demo.ts
 
----
+import { Engine } from '../engine/Engine'
+import { Experience } from '../engine/Experience'
+import { Resource } from '../engine/Resources'
 
-# Project Status
+export class Demo implements Experience {
+  // list of resources required by the experience
+  resources: Resource[] = []
 
-⚠️ This is an **early prototype** and many systems are still experimental.
-Expect bugs, missing features, and ongoing changes.
+  constructor(private engine: Engine) {}
 
-The editor is being developed as part of the **3D Movie Maker Remastered community project**.
+  // initialize scene -- called by tne Engine after resources are loaded
+  init() {}
 
----
+  // called on resize
+  resize() {}
 
-# Missing Sound Files
+  // called on each render
+  update() {}
+}
+```
 
-The **WAV files in the `SFX` folder are not included in this repository**.
+### Removing the example scene
 
-These sound effects originate from the original **3D Movie Maker (1995)** and are therefore not distributed with this project.
+To demonstrate how to use the scaffolding, this project includes an example scene. To remove it and start with a blank project, run:
 
-To enable sound effects in the editor, you will need to **extract the WAV files from your own copy of the original 3D Movie Maker** and place them inside the `SFX` folder.
+```bash
+yarn cleanup
+```
 
-Once the files are present in the correct directory, the editor will automatically load and use them.
+This will also clear the content of this README.md file to just the basic commands for running the project.
 
----
+### Serving Resources
 
-## License
+Resources loaded through THREE.js loaders need to go in the `/public` directory to avoid being compiled by Vite. This includes textures and models.
 
-MIT License
+More information about Vite's asset handling can be found [here](https://vitejs.dev/guide/assets.html).
 
----
+### Including Shader Chunks
 
-### 🤝 Author
+Shaders are loaded using the [vite-plugin-glsl](https://github.com/UstymUkhman/vite-plugin-glsl) Vite plugin and can be located anywhere within the `/src` directory.
 
-Made by Nico and Julius – [phantomcrew.eu](https://phantomcrew.eu/)
+The starter also includes the LYGIA Shader Library. To use it, import the shader chunks you need in your shader file.
 
-<a href="https://www.buymeacoffee.com/phantomcrew" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-blue.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
+```glsl
+// in src/demo/shader.frag
 
+#include "../shaders/lygia/color/palette/water.glsl"
 
+varying vec2 vUv;
+
+void main() {
+    gl_FragColor = vec4(water(vUv.y), 1.0);
+}
+```

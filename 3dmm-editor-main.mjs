@@ -123,20 +123,34 @@ function focalToFovDeg(fmm) {
     return 2 * Math.atan(SENSOR_HEIGHT_MM / (2 * f)) * (180 / Math.PI);
 }
 
-// IMPORTANT: keep projectionMatrixInverse valid for raycasting after manual edit
-function applyHorizonShift(cam, shiftY) {
+function getCoverTransformForSize(screenW = innerWidth, screenH = innerHeight) {
+    return computeCoverTransform(screenW, screenH, bgW, bgH);
+}
+
+// IMPORTANT: keep projectionMatrixInverse valid for raycasting after manual edit.
+// The camera projects into background-image space, then gets the same centered
+// cover crop as the DOM background/depth map.
+function applyImageCoverProjection(cam, shiftY, screenW = innerWidth, screenH = innerHeight) {
+    cam.aspect = Math.max(1e-6, bgW / Math.max(1e-6, bgH));
     cam.updateProjectionMatrix();
     cam.projectionMatrix.elements[9] = shiftY * 2.0;
+    const c = getCoverTransformForSize(screenW, screenH);
+    const sx = Math.max(1e-6, c.scaleX);
+    const sy = Math.max(1e-6, c.scaleY);
+    cam.projectionMatrix.elements[0] /= sx;
+    cam.projectionMatrix.elements[8] /= sx;
+    cam.projectionMatrix.elements[5] /= sy;
+    cam.projectionMatrix.elements[9] /= sy;
     cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
 }
 
 // always update camera BEFORE rendering
-function updateCameraFromUI() {
+function updateCameraFromUI(screenW = innerWidth, screenH = innerHeight) {
     camera.fov = focalToFovDeg(+ui.fmm.value);
     camera.position.y = +(ui.camHeight ? ui.camHeight.value : 1.2);
     camera.rotation.set(THREE.MathUtils.degToRad(+ui.pitch.value), 0, 0);
     camera.updateMatrixWorld(true);
-    applyHorizonShift(camera, +ui.horizon.value);
+    applyImageCoverProjection(camera, +ui.horizon.value, screenW, screenH);
     camera.updateMatrixWorld(true);
 }
 
@@ -743,8 +757,8 @@ async function loadAndDecodeDepthTexture(url) {
 let depthTex = await loadAndDecodeDepthTexture("./depth.png");
 
 const cover = new THREE.Vector4(1, 1, 0, 0);
-function syncCover() {
-    const c = computeCoverTransform(innerWidth, innerHeight, bgW, bgH);
+function syncCover(screenW = innerWidth, screenH = innerHeight) {
+    const c = getCoverTransformForSize(screenW, screenH);
     cover.set(c.scaleX, c.scaleY, c.offX, c.offY);
 }
 syncCover();
@@ -760,6 +774,7 @@ async function setBackgroundImageFromUrl(url) {
             bgW = img.naturalWidth || img.width || bgImgEl.naturalWidth || bgImgEl.width || 1;
             bgH = img.naturalHeight || img.height || bgImgEl.naturalHeight || bgImgEl.height || 1;
             syncCover();
+            updateCameraFromUI();
             resolve();
         };
         bgImgEl.onload = done;
@@ -802,6 +817,7 @@ async function setDepthTextureFromUrl(url) {
 }
 
 const screenPx = new THREE.Vector2(1, 1);
+const renderSizePx = new THREE.Vector2(1, 1);
 function syncScreenPx() { renderer.getDrawingBufferSize(screenPx); }
 syncScreenPx();
 
@@ -1428,7 +1444,7 @@ function _makeDefaultBackgroundEntry() {
         background: 'background.jpg',
         zbuffer: 'depth.png',
         meta: {
-            focal_mm: 86,
+            focal_mm: 75,
             horizon_y: -0.3,
             pitch_deg: 0,
             cam_height: 1.2,
@@ -7888,7 +7904,7 @@ async function importCharacterFromArrayBuffer(arrayBuffer, fileName, opts = {}) 
 }
 // ---------- Project Export/Import (native .3dmmproj JSON) ----------
 const PROJECT_MAGIC = "3DMM_NATIVE_PROJECT";
-const PROJECT_VERSION = 1;
+const PROJECT_VERSION = 2;
 
 const UI_FIELDS = [
     "overlay", "fmm", "horizon", "pitch", "camHeight", "showH", "drawSceneDepth",
@@ -7898,6 +7914,17 @@ const UI_FIELDS = [
     "mouthFps", "mouthThrF", "mouthThrE", "mouthThrA",
     "walkMin", "walkMax", "runMin", "runMax", "animXfade",
 ];
+
+function migrateLegacyDepthCoverUI(uiState, version) {
+    if (!uiState || typeof uiState !== "object" || Number(version) >= 2) return;
+    const near = (key, value, eps = 1e-4) => Math.abs(_num(uiState[key], NaN) - value) <= eps;
+    if (near("sx", 1, 1e-3) && near("sy", 0.72, 1e-3) && near("ox", -0.001, 1e-3) && near("oy", 0.1395, 1e-3)) {
+        uiState.sx = 1;
+        uiState.sy = 1;
+        uiState.ox = 0;
+        uiState.oy = 0;
+    }
+}
 
 function collectProject() {
     const uiState = {};
@@ -8019,10 +8046,12 @@ function _normalizeKeys(keys) {
 async function applyProject(proj, { mode = "replace", progress = null, loadLabel = "" } = {}) {
     if (!proj || typeof proj !== "object") throw new Error("Invalid file (not an object).");
     if (proj.type !== PROJECT_MAGIC) throw new Error("Unknown project format (type).");
-    if ((proj.version | 0) !== PROJECT_VERSION) {
+    const projectVersion = proj.version | 0;
+    if (projectVersion !== PROJECT_VERSION) {
         // forward-compatible: still try if keys exist
         console.warn("Project version differs:", proj.version);
     }
+    migrateLegacyDepthCoverUI(proj.ui, projectVersion);
 
     // Stop any transport state
     try { stopRecording(); } catch { }
@@ -8358,10 +8387,10 @@ function _drawSourceCover2D(ctx, img, dx, dy, dw, dh) {
     const iw = Math.max(1, img.naturalWidth || img.videoWidth || img.width || 1);
     const ih = Math.max(1, img.naturalHeight || img.videoHeight || img.height || 1);
     const cover = computeCoverTransform(dw, dh, iw, ih);
-    const sx = (cover.offX * -iw) / cover.scaleX;
-    const sy = (cover.offY * -ih) / cover.scaleY;
-    const sw = iw / cover.scaleX;
-    const sh = ih / cover.scaleY;
+    const sx = cover.offX * iw;
+    const sy = cover.offY * ih;
+    const sw = cover.scaleX * iw;
+    const sh = cover.scaleY * ih;
     try { ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh); } catch (err) { console.debug("Background compose skipped", err); }
 }
 
@@ -8497,7 +8526,7 @@ async function _renderExportAudioWav(start, end) {
 }
 
 
-async function _restoreFullscreenAfterPicker(state) {
+async function _restoreFullscreenAfterPicker(state, opts = {}) {
     if (!state?.wasFullscreen) return;
     if (document.fullscreenElement) return;
     const target = (state.target && typeof state.target.requestFullscreen === 'function') ? state.target : document.documentElement;
@@ -8517,7 +8546,16 @@ async function _restoreFullscreenAfterPicker(state) {
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     await _sleep(220);
     _syncExportPreviewCanvasSize();
-    try { renderer.setSize(window.innerWidth, window.innerHeight, false); } catch { }
+    try {
+        const renderResolution = opts.renderResolution || null;
+        const w = Math.max(1, Math.round(+renderResolution?.w || window.innerWidth));
+        const h = Math.max(1, Math.round(+renderResolution?.h || window.innerHeight));
+        renderer.setSize(w, h, false);
+        resizeRenderTargets();
+        syncCover(w, h);
+        updateCameraFromUI(w, h);
+        syncScreenPx();
+    } catch { }
 }
 
 async function _pickExportDirectory(opts = {}) {
@@ -8528,7 +8566,7 @@ async function _pickExportDirectory(opts = {}) {
     };
     const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
     if (opts.restoreFullscreen !== false) {
-        await _restoreFullscreenAfterPicker(fullscreenState);
+        await _restoreFullscreenAfterPicker(fullscreenState, opts);
     }
     return dirHandle;
 }
@@ -8835,20 +8873,24 @@ function _withTemporaryRenderSettings(resolution, motionBlurSamples) {
     };
     renderer.setPixelRatio(1);
     renderer.setSize(resolution.w, resolution.h, false);
+    resizeRenderTargets();
     renderer.domElement.style.width = "100vw";
     renderer.domElement.style.height = "100vh";
-    camera.aspect = resolution.w / resolution.h;
-    camera.updateProjectionMatrix();
+    syncCover(resolution.w, resolution.h);
+    updateCameraFromUI(resolution.w, resolution.h);
+    syncScreenPx();
     MOTION_BLUR.enabled = true;
     MOTION_BLUR.samples = Math.max(1, Math.round(motionBlurSamples || MOTION_BLUR.samples || 1));
     MOTION_BLUR.inited = false;
     return () => {
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.setPixelRatio(prev.pixelRatio);
         renderer.setSize(window.innerWidth, window.innerHeight, false);
+        resizeRenderTargets();
         renderer.domElement.style.width = prev.styleW;
         renderer.domElement.style.height = prev.styleH;
-        camera.aspect = window.innerWidth / Math.max(1, window.innerHeight);
-        camera.updateProjectionMatrix();
+        syncCover();
+        updateCameraFromUI();
+        syncScreenPx();
         MOTION_BLUR.enabled = prev.mbEnabled;
         MOTION_BLUR.samples = prev.mbSamples;
         MOTION_BLUR.inited = prev.mbInited;
@@ -8863,7 +8905,10 @@ function _renderExportSceneAt(renderTime) {
     const exportClipActive = !!(voice.isClipActiveAt && voice.isClipActiveAt(timeline.playhead));
     const exportRms = voice.getRmsAt ? voice.getRmsAt(timeline.playhead, 1 / Math.max(1, +ui.mouthFps.value || 20)) : 0;
     if (mouth.applyRms) mouth.applyRms(exportRms, exportClipActive);
-    updateCameraFromUI();
+    renderer.getDrawingBufferSize(renderSizePx);
+    syncCover(renderSizePx.x, renderSizePx.y);
+    updateCameraFromUI(renderSizePx.x, renderSizePx.y);
+    syncScreenPx();
     applyBrightnessFromUI();
     updateCharReadout();
 
@@ -9295,7 +9340,7 @@ async function exportRealtimeCapture(format) {
             let dirHandle = null;
             const useFolder = format === 'png-folder';
             if (useFolder) {
-                dirHandle = await _pickExportDirectory({ restoreFullscreen: true });
+                dirHandle = await _pickExportDirectory({ restoreFullscreen: true, renderResolution: res });
                 if (!dirHandle) throw new Error(tr('Folder export is not available in this browser.'));
             }
             const frames = useFolder ? null : [];
@@ -10757,10 +10802,8 @@ function resizeRenderTargets() {
 
 addEventListener("resize", () => {
     renderer.setSize(innerWidth, innerHeight);
-    camera.aspect = innerWidth / innerHeight;
-    camera.updateProjectionMatrix();
-    camera.updateMatrixWorld(true);
     syncCover();
+    updateCameraFromUI();
     syncScreenPx();
     resizeRenderTargets();
     updateTimelineSliderDecorations();
@@ -10971,7 +11014,7 @@ function loop(now) {
 
     renderer.setRenderTarget(rtScene);
     renderer.clear();
-    if ((+ui.drawSceneDepth.value) > 0.5) {
+    if ((+ui.drawSceneDepth.value) > 1) {
         drawSceneDepthBuffer();
     } else {
         if (+ui.shStr.value > 0.0001) {

@@ -1,0 +1,32 @@
+{
+  "dataset": {
+    "entries": [
+      {
+        "id": "1:1",
+        "pair_index": 1,
+        "relative_dir": "Graphic/test",
+        "name_key": "initial",
+        "background": "Graphic/test/initial.jpg",
+        "zbuffer": "ZBuffer/test/initial.png",
+        "meta": {
+          "focal_mm": 75,
+          "horizon_y": -0.3,
+          "pitch_deg": 0
+        }
+      },
+      {
+        "id": "1:2",
+        "pair_index": 1,
+        "relative_dir": "Graphic/2d",
+        "name_key": "silly",
+        "background": "Graphic/2d/silly.png",
+        "zbuffer": "ZBuffer/2d/silly.png",
+        "meta": {
+          "focal_mm": 75,
+          "horizon_y": -0.3,
+          "pitch_deg": 0
+        }
+      }
+    ]
+  }
+}

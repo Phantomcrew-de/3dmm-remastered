@@ -287,7 +287,7 @@ export { ui, setLanguage, tr, trFormat, populateLanguageSelect, applyI18n, i18nO
     // set default values for UI controls
     ui.overlay.value = 0.00;
 
-    ui.fmm.value = 86.0;
+    ui.fmm.value = 75.0;
     ui.horizon.value = -0.3000;
     ui.pitch.value = 0.00;
     if (ui.camHeight) ui.camHeight.value = 1.20;
@@ -306,9 +306,9 @@ export { ui, setLanguage, tr, trFormat, populateLanguageSelect, applyI18n, i18nO
     ui.lightMul.value = 1.01;
 
     ui.sx.value = 1.000;
-    ui.sy.value = 0.720;
-    ui.ox.value = -0.0010;
-    ui.oy.value = 0.1395;
+    ui.sy.value = 1.000;
+    ui.ox.value = 0.0;
+    ui.oy.value = 0.0;
 
     ui.rot.value = "0";
     ui.fx.value = 0;

@@ -35,16 +35,16 @@ import * as THREE from "three";
 
 
 
-       // map image coordinates to screen coordinates with cover fit, and get the inverse transform for mapping mouse coords
+       // Map normalized screen UVs to the source image UVs produced by CSS object-fit: cover.
     function computeCoverTransform(screenW, screenH, imageW, imageH) {
       const rs = screenW / screenH;
       const ri = imageW / imageH;
       let scaleX = 1, scaleY = 1, offX = 0, offY = 0;
       if (ri > rs) {
-        scaleX = ri / rs;
+        scaleX = rs / ri;
         offX = (1 - scaleX) * 0.5;
       } else {
-        scaleY = rs / ri;
+        scaleY = ri / rs;
         offY = (1 - scaleY) * 0.5;
       }
       return { scaleX, scaleY, offX, offY };

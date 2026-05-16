@@ -123,7 +123,7 @@ Once added, they will become **available for use inside the editor** for dialogu
 ⚠️ This is an **early prototype** and many systems are still experimental.
 Expect bugs, missing features, and ongoing changes.
 
-The editor is being developed as part of the **3D Movie Maker Remastered community project**.
+The editor is being developed as part of the **[3D Movie Maker Remastered community project](https://phantomcrew.eu/3DMM/)**.
 
 ---
 

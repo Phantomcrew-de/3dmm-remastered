@@ -2,6 +2,8 @@
 
 This repository contains an **early browser-based editor prototype** for the **3D Movie Maker Remastered Project**.
 
+[![Try Editor](https://img.shields.io/badge/Try%20Editor-Launch%20Web%20App-0d1117?style=for-the-badge&logo=googlechrome&logoColor=white)](https://phantomcrew-de.github.io/3dmm-remastered/3dmm-editor.html)
+
 The goal of the project is to recreate and modernize **Microsoft's 3D Movie Maker (1995)** as a **modern web application**, while preserving the charm and creative workflow of the original tool.
 
 This prototype demonstrates early editor functionality such as:
